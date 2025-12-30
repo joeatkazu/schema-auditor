@@ -17,7 +17,7 @@ export default function SchemaAuditor() {
 
     try {
       // 2. Call your Python Backend
-      const response = await fetch("https://schema-auditor.onrender.com", {
+      const response = await fetch("https://schema-auditor.onrender.com/scan", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
