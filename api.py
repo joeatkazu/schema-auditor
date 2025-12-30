@@ -95,18 +95,18 @@ async def scan_url(request: ScanRequest):
         # Return a helpful error if scraping totally crashes
         raise HTTPException(status_code=400, detail=f"Scraping failed. Error: {str(e)}")
 
-    # 4. AI Logic
+    # ... (Scraper logic stays the same) ...
+
+    # 4. AI Logic (Stricter "Ghost Hunter" Version)
     if not schema_data:
-        # If no schema found, return a FAIL result but mention the page title
-        # This helps you know if Cloudflare blocked you (Title = "Just a moment...")
         return {
             "status": "Fail",
-            "summary": f"No Schema Markup found. (Page Title detected: '{page_title}'). If the title says 'Just a moment' or 'Verify', the site blocked our bot.",
+            "summary": f"No Schema Markup found. (Page Title: '{page_title}').",
             "risks": []
         }
 
     prompt = f"""
-    You are a Google Search Quality Evaluator. Analyze the following.
+    You are a strict Google Search Quality Evaluator. Analyze the following SEO data.
     
     VISIBLE TEXT ON PAGE:
     {visible_text[:15000]} ... (truncated)
@@ -115,24 +115,25 @@ async def scan_url(request: ScanRequest):
     {schema_data}
     
     TASK:
-    Detect "Spammy Structured Data" violations based on Google's specific guidelines.
+    Detect "Spammy Structured Data" violations. You must be aggressive in flagging "Hidden" or "Manipulative" schema.
     
-    CHECK THESE SPECIFIC RULES:
-    1. HIDDEN CONTENT (High Severity): Is there content in the Schema (like FAQ answers or reviews) that is NOT present in the visible text? This is a penalty trigger.
-    2. IRRELEVANT TYPES (Medium Severity): Is 'Organization' or 'LocalBusiness' used on a purely informational blog post?
-    3. SELF-SERVING REVIEWS (High Severity): Is 'AggregateRating' used on a 'LocalBusiness' or 'Organization' entity (unless it's a third-party directory)?
-    4. MISMATCHED PRICES (High Severity): If there is 'Offer' schema, does the price match the text?
+    CRITICAL RULES TO CHECK:
+    1. GHOST RATINGS (High Severity): If 'AggregateRating' or 'Review' schema is present, SEARCH the Visible Text. Do you see the stars or rating count displayed? (e.g., If schema says "ratingCount": 50, but the text doesn't say "50 reviews", this is a VIOLATION).
+    2. HIDDEN FAQ/CONTENT (High Severity): Is there content in the Schema (like FAQ answers) that is completely missing from the visible text?
+    3. IRRELEVANT TYPES (Medium Severity): Is 'Organization', 'Product', or 'LocalBusiness' schema used on a purely informational blog post (like "Best X to Buy")? Blog posts should usually use 'Article' or 'BlogPosting'.
+    4. SELF-SERVING REVIEWS (High Severity): Is the site rating ITSELF? (e.g. Organization schema with AggregateRating).
     
-    Return a valid JSON object with this exact structure:
+    OUTPUT FORMAT (JSON ONLY):
     {{
         "status": "Pass" or "Fail",
-        "summary": "A 1-sentence summary of the finding.",
+        "summary": "A 1-sentence summary. If you find Ghost Ratings, say 'Failed due to hidden review schema'.",
         "risks": [
-            {{ "severity": "High" or "Medium" or "Low", "issue": "Short Title", "description": "Explanation of the violation" }}
+            {{ "severity": "High", "issue": "Hidden Reviews", "description": "Schema claims 4.8 stars, but this rating is not visible to the user." }}
         ]
     }}
     """
-
+    
+    # ... (The rest of the file stays the same) ...
     try:
         completion = client.chat.completions.create(
             model="gpt-4o",
